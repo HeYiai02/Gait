@@ -6,11 +6,11 @@ from scipy.signal import find_peaks, savgol_filter
 
 class UltimateSegmentedGaitAnalyzer:
     """
-    终极临床级视角自适应步态分析器 (Viewpoint-Aware & Knee ROM Adaptive Analyzer):
-    1. 视角自动感知 (Viewpoint Auto-Detection): 自动识别 FRONTAL (正面), SIDE (侧面), OBLIQUE (斜向)
-    2. 侧面视角容错 (Side-View Adaptation): 侧面视角自动激活膝关节活动度 (Knee ROM 伸屈角) 评估肢体控制力与僵硬度
-    3. 全方向 & 多折返智能直行分段器: 支持单向直行及 1 至 N 次来回走动折返
-    4. 彻底移除 stumble_count 突变误扣分，纯依靠生物力学稳态与关节活动度指标
+    终极临床级视角自适应步态分析器 (V4 - 全视角病理统一 & 碎碎片防护版):
+    1. 信号幅度卡压: 消除无转身视频被微小姿态噪声误切成伪碎片段的 Bug
+    2. 样本量闸口: 强制要求至少 3 个迈步波峰 (至少 2 个步态间隔) 才计算 CV/GAI，彻底消除 2 峰伪满分
+    3. 全视角僵膝病理支持: 当检测到 knee_rom < 25° (僵膝强直) 时，无论正面还是侧面均计入下肢控制扣分
+    4. 彻底移除 stumble_count 突变扣分，纯依靠生物力学稳态与关节活动度指标
     """
     def __init__(self, raw_video_fps=30.0, min_segment_frames=15):
         self.raw_video_fps = raw_video_fps
@@ -22,15 +22,14 @@ class UltimateSegmentedGaitAnalyzer:
         shoulder_w = np.abs(ls_x - rs_x)
         shoulder_ratio = float(np.median(shoulder_w / (inst_torso_h + 1e-5)))
         
-        # 校准后的归一化门槛：
         if shoulder_ratio < 0.15:
-            return "SIDE", round(shoulder_ratio, 3)     # 侧面视角 (如 0.060)
+            return "SIDE", round(shoulder_ratio, 3)
         elif shoulder_ratio > 0.22:
-            return "FRONTAL", round(shoulder_ratio, 3)  # 正面视角 (如 0.286)
-        return "OBLIQUE", round(shoulder_ratio, 3)      # 斜向视角
+            return "FRONTAL", round(shoulder_ratio, 3)
+        return "OBLIQUE", round(shoulder_ratio, 3)
 
     def _calc_knee_rom(self, sub_df):
-        """计算侧面视角下膝关节伸屈活动度 (Flexion/Extension ROM)"""
+        """计算膝关节伸屈活动度 (Flexion/Extension ROM)"""
         lh_x, lh_y = sub_df['kpt_11_x'].values, sub_df['kpt_11_y'].values
         lk_x, lk_y = sub_df['kpt_13_x'].values, sub_df['kpt_13_y'].values
         la_x, la_y = sub_df['kpt_15_x'].values, sub_df['kpt_15_y'].values
@@ -63,7 +62,6 @@ class UltimateSegmentedGaitAnalyzer:
         return round(knee_rom, 1)
 
     def _segment_straight_walks(self, valid_df):
-        """智能全向 & 多折返直行分段器"""
         n_frames = len(valid_df)
         if n_frames < self.min_segment_frames * 2:
             return [("全视频片段", valid_df)]
@@ -86,14 +84,20 @@ class UltimateSegmentedGaitAnalyzer:
 
         if x_ptp > h_ptp * 1.3 and x_ptp > 0.15:
             axis_signal = smooth_x
+            signal_ptp = x_ptp
         else:
             axis_signal = smooth_h
+            signal_ptp = h_ptp
+
+        # 防护 1: 若全程位移总变幅小于 0.12，说明该视频无任何转身，作为单一段落处理
+        if signal_ptp < 0.12:
+            return [("全视频片段", valid_df)]
 
         min_dist_frames = max(15, int(self.raw_video_fps * 0.8))
-        signal_ptp = np.ptp(axis_signal)
+        prom = max(0.04, 0.12 * signal_ptp)
         
-        peaks_pos, _ = find_peaks(axis_signal, distance=min_dist_frames, prominence=max(0.01, 0.08 * signal_ptp))
-        peaks_neg, _ = find_peaks(-axis_signal, distance=min_dist_frames, prominence=max(0.01, 0.08 * signal_ptp))
+        peaks_pos, _ = find_peaks(axis_signal, distance=min_dist_frames, prominence=prom)
+        peaks_neg, _ = find_peaks(-axis_signal, distance=min_dist_frames, prominence=prom)
 
         all_turns = np.sort(np.concatenate([peaks_pos, peaks_neg]))
         valid_turns = [t for t in all_turns if self.min_segment_frames <= t <= (n_frames - self.min_segment_frames)]
@@ -175,7 +179,9 @@ class UltimateSegmentedGaitAnalyzer:
 
         # 3. 寻找波峰
         peaks, _ = find_peaks(smoothed_dist, distance=max(3, int(effective_fps * 0.20)), prominence=0.02)
-        if len(peaks) < 2:
+        
+        # 防护 2: 强制要求至少 3 个迈步波峰 (即至少 2 个迈步间隔)，防止 2 峰段落出现 std=0 伪满分
+        if len(peaks) < 3:
             return None
 
         # 4. 绝对物理时间计算
@@ -193,29 +199,35 @@ class UltimateSegmentedGaitAnalyzer:
         odd_steps = step_intervals_sec[1::2]
         gai = float(abs(np.mean(even_steps) - np.mean(odd_steps)) / (np.mean(step_intervals_sec) + 1e-5)) if len(even_steps)>0 and len(odd_steps)>0 else 0.0
 
-        # 5. 视角自适应躯干摇晃与肢体控制打分
+        # 5. 视角自适应躯干摇晃与肢体控制打分 (全视角支持僵膝病理扣分)
         dx = sh_x - hip_x
         dy = sh_y - hip_y
         trunk_angle = np.degrees(np.arctan2(dx, -dy))
         win_len_t = min(21, len(trunk_angle) if len(trunk_angle) % 2 != 0 else len(trunk_angle) - 1)
         com_sway_std = float(np.std(trunk_angle - savgol_filter(trunk_angle, win_len_t, 1)))
 
-        if view_type == "SIDE":
-            # 侧面视角：激活 Knee ROM (膝关节活动度) 评估 (正常 42°~65°，低于 25° 属僵硬退化)
-            if knee_rom >= 42.0:
-                score_balance = 100.0
-            elif knee_rom >= 25.0:
-                score_balance = 60.0 + (knee_rom - 25.0) / (42.0 - 25.0) * 35.0
-            else:
-                score_balance = max(0.0, (knee_rom / 25.0) * 60.0)
+        if com_sway_std <= 2.5:
+            score_sway = 100.0 - (com_sway_std / 2.5) * 15.0
+        elif com_sway_std <= 6.0:
+            score_sway = 85.0 - (com_sway_std - 2.5) / (6.0 - 2.5) * 35.0
         else:
-            # 正面/斜向视角：使用 com_sway_std (左右摇晃) 评估
-            if com_sway_std <= 2.5:
-                score_balance = 100.0 - (com_sway_std / 2.5) * 15.0
-            elif com_sway_std <= 6.0:
-                score_balance = 85.0 - (com_sway_std - 2.5) / (6.0 - 2.5) * 35.0
+            score_sway = max(0.0, 50.0 - (com_sway_std - 6.0) * 10.0)
+
+        if knee_rom >= 42.0:
+            score_knee = 100.0
+        elif knee_rom >= 25.0:
+            score_knee = 60.0 + (knee_rom - 25.0) / (42.0 - 25.0) * 35.0
+        else:
+            score_knee = max(0.0, (knee_rom / 25.0) * 60.0)
+
+        if view_type == "SIDE":
+            score_balance = score_knee
+        else:
+            # 防护 3: 正面/斜向视角下，如果 knee_rom < 25.0° (僵膝强直)，同步激活僵膝扣分
+            if knee_rom < 25.0:
+                score_balance = min(score_sway, score_knee)
             else:
-                score_balance = max(0.0, 50.0 - (com_sway_std - 6.0) * 10.0)
+                score_balance = score_sway
 
         # 6. 双支撑相占比
         rel_la_x = (la_x - hip_x) / smooth_scale
