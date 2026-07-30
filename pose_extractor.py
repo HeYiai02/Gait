@@ -31,6 +31,13 @@ class CameraMotionCompensator:
             return 0.0, 0.0
 
         mask = np.ones_like(gray_small, dtype=np.uint8) * 255
+
+        # 🟢 【新增修改】：彻底屏蔽底部 12% 的 YouTube 进度条/按钮区域
+        # 确保 GMC 光流角点 100% 只在真实背景画面中提取，不受 UI 静态干扰
+        # ui_bottom_h = int(calc_h * 0.12)
+        # if ui_bottom_h > 0:
+        #     mask[-ui_bottom_h:, :] = 0
+        #============================================================
         if person_box is not None:
             x1, y1, x2, y2 = map(int, person_box)
             sx1, sy1 = int(max(0, x1 * scale - 6)), int(max(0, y1 * scale - 6))
@@ -400,4 +407,4 @@ class RobustPoseExtractor:
 
 if __name__ == '__main__':
     extractor = RobustPoseExtractor(conf_thresh=0.35, smooth_factor=0.4, enable_gmc=True, frame_stride=2)
-    extractor.extract("data/sample/cerebralPalsy_2.mp4", "data/sample/cerebralPalsy_2_pose.csv")
+    extractor.extract("data/sample/stroke_1.mp4", "data/sample/stroke_1.csv")

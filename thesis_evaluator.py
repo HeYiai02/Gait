@@ -33,7 +33,7 @@ def run_thesis_experiments(features_csv="data/output/gait_medical_features.csv",
     
     healthy_df = df[df['group'] == 'Healthy Baseline']
 
-    healthy_df = healthy_df[healthy_df['gsi_score'] >= 75 ]
+    # healthy_df = healthy_df[healthy_df['gsi_score'] >= 75 ]
     # 标准统计学 IQR 剔除离群点示例 (符合统计学规范)
     # Q1 = healthy_df['gsi_score'].quantile(0.25)
     # Q3 = healthy_df['gsi_score'].quantile(0.75)

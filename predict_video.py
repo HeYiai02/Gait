@@ -78,4 +78,4 @@ def predict_gait_risk(new_pose_csv, model_path="models/fall_risk_classifier.jobl
     return predicted_gsi
 
 if __name__ == '__main__':
-    predict_gait_risk("data/sample/cerebralPalsy_2_pose.csv")
+    predict_gait_risk("data/sample/stroke_1.csv")
