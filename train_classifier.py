@@ -45,8 +45,15 @@ def train_and_evaluate_gait_model(
 
     df = pd.read_csv(features_csv_path)
 
-    # 包含视角自适应特征 (knee_rom、com_sway_std 等)
-    candidate_features = ['step_cv', 'stride_time_cv', 'double_support_ratio', 'com_sway_std', 'knee_rom', 'step_mean']
+    # 【同步升级】：剔除受 2D 空间畸变污染的 step_cv 与 step_mean，
+    # 纯粹采用“时间频率”与“解剖学角度”指标训练模型，彻底抵御视角干扰！
+    candidate_features = [
+        'stride_time_cv',        # 核心：步频节奏变异（不受透视影响）
+        'gai_asymmetry',         # 核心：步态不对称指数
+        'double_support_ratio',  # 核心：支撑相/拖步评估
+        'com_sway_std',          # 核心：正面平衡评估
+        'knee_rom'               # 核心：侧面下肢僵硬评估
+    ]
     feature_cols = [col for col in candidate_features if col in df.columns]
 
     df = clean_gait_data(df, feature_cols)

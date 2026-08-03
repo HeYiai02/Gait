@@ -99,14 +99,15 @@ def run_thesis_experiments(features_csv="data/output/gait_medical_features.csv",
     axes[0].set_ylabel('Gait Stability Index (GSI)', fontsize=10)
     axes[0].set_xlabel('')
 
-    # 图 B: 步长变异系数 (Step CV) 箱线图 (已修复 Warning: 显式赋值 hue='group' 并设置 legend=False)
+    # 图 B: 步频时间变异 (Stride Time CV) 箱线图 
+    # 【同步升级】：弃用无显著性的 step_cv，改用具有极强医学显著性 (p<0.001) 的步频变异指标
     sns.boxplot(
-        x='group', y='step_cv', data=df, ax=axes[1], 
+        x='group', y='stride_time_cv', data=df, ax=axes[1], 
         hue='group', palette=['#2ecc71', '#e74c3c'], legend=False, width=0.4
     )
-    sns.stripplot(x='group', y='step_cv', data=df, ax=axes[1], color='black', alpha=0.6, jitter=0.2)
-    axes[1].set_title('B. Step Length Variation (Step CV)', fontsize=12, fontweight='bold')
-    axes[1].set_ylabel('Step CV', fontsize=10)
+    sns.stripplot(x='group', y='stride_time_cv', data=df, ax=axes[1], color='black', alpha=0.6, jitter=0.2)
+    axes[1].set_title('B. Temporal Variation (Stride Time CV)', fontsize=12, fontweight='bold')
+    axes[1].set_ylabel('Stride Time CV', fontsize=10)
     axes[1].set_xlabel('')
 
     # 图 C: GSI 得分的 ROC 曲线与 AUC
