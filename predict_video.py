@@ -66,10 +66,11 @@ def predict_gait_risk(new_pose_csv, model_path="models/fall_risk_classifier.jobl
         print(f"🦵 膝关节屈伸活动度 (Knee ROM): {metrics['knee_rom']}° (侧面核心指标)")
     else:
         print(f"⚖️ 躯干左右摇晃标准差 (Sway Std): {metrics['com_sway_std']}° (正面核心指标)")
-    print(f"📏 平均归一化步长 (Step Mean): {metrics.get('step_mean', 'N/A')}")
-    print(f"📈 步长变异系数 (Step CV): {metrics['step_cv']}")
+    
+    # 【同步升级】：不再打印不可靠的 step_cv，聚焦核心指标
     print(f"⏱️ 步频时间变异 (Stride Time CV): {metrics['stride_time_cv']}")
-    print(f"⚖️ 步态不对称度 (GAI): {metrics['gai_asymmetry']}")
+    print(f"⚖️ 步态时序不对称度 (GAI): {metrics['gai_asymmetry']}")
+    print(f"⏳ 双支撑相占比 (DSR): {metrics['double_support_ratio']}")
     print(f"🏃 终极 GSI 稳定性得分: {predicted_gsi} 分")
     print(f"⚠️ 跌倒风险指数: {fall_risk_idx}%")
     print(f"🚨 诊断结论: {risk_level}")
