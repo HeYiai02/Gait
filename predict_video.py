@@ -1,8 +1,8 @@
 import os
 import joblib
-import pandas as pd
 import numpy as np
 from medical_metrics import UltimateSegmentedGaitAnalyzer
+from pose_extractor import RobustPoseExtractor
 
 def predict_gait_risk(new_pose_csv, model_path="models/fall_risk_classifier.joblib"):
     print(f"\n🎬 正在准备评估姿态文件: {new_pose_csv}")
@@ -14,7 +14,10 @@ def predict_gait_risk(new_pose_csv, model_path="models/fall_risk_classifier.jobl
     # 2. 响应质量闸口
     if metrics is None:
         print("🛑 [系统提示]: 该视频未能提取到有效直行步态片段（可能原因：帧数不足或无法识别迈步周期）。")
-        return None
+        return {
+            "status":"faild",
+            "message":"[系统提示]: 该视频未能提取到有效直行步态片段（可能原因：帧数不足或无法识别迈步周期）。"
+        }
 
     # 3. 加载模型或输出临床规则 GSI 得分
     if not os.path.exists(model_path):
@@ -76,7 +79,21 @@ def predict_gait_risk(new_pose_csv, model_path="models/fall_risk_classifier.jobl
     print(f"🚨 诊断结论: {risk_level}")
     print("="*50)
 
-    return predicted_gsi
+    # return predicted_gsi
+    return {
+        "status": "success",
+        "message": "分析成功",
+        "strideTimeCv": metrics['stride_time_cv'],
+        "gaiAsymmetry": metrics['gai_asymmetry'],
+        "doubleSupportRatio": metrics['double_support_ratio'],
+        "predictedGsi": predicted_gsi,
+        "fallRiskIdx": fall_risk_idx,
+        "riskLevel": risk_level,
+        "viewType": view_str,
+        "kneeRom": metrics['knee_rom'],
+        "swayStd": metrics['com_sway_std']
+    }
+    
 
 if __name__ == '__main__':
     predict_gait_risk("data/sample/stroke_1.csv")
