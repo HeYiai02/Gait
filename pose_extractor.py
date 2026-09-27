@@ -388,7 +388,9 @@ class RobustPoseExtractor:
 
                 # 画图[cite: 2]
                 if need_rendering:
-                    annotated_frame = frame.copy()
+                    # annotated_frame = frame.copy()
+                    # 换成生成与原图等宽等高的纯黑画布
+                    annotated_frame = np.zeros(frame.shape, dtype=np.uint8)
                     kpts_pixel = curr_kpts.copy()
                     kpts_pixel[:, 0] *= w; kpts_pixel[:, 1] *= h
                     # 还原位移数据到原图尺寸，方便在屏幕左上角打印出正确的高清像素位移值
@@ -407,7 +409,9 @@ class RobustPoseExtractor:
                 records.append(frame_data)
                 
                 if need_rendering:
-                    annotated_frame = frame.copy()
+                    # annotated_frame = frame.copy()
+                    # 换成生成与原图等宽等高的纯黑画布
+                    annotated_frame = np.zeros(frame.shape, dtype=np.uint8)                    
                     true_cam_dx = cam_dx_px * scale_w
                     true_cam_dy = cam_dy_px * scale_h
                     self._draw_hud_overlay(annotated_frame, gmc, true_cam_dx, true_cam_dy, accum_cam_dx, accum_cam_dy, None, None,scale_w,scale_h)
